@@ -1,0 +1,446 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User & Authentication
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          String    @default("citizen") // admin, officer, citizen
+  avatar        String?
+  department    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  isActive      Boolean   @default(true)
+  
+  // Relations
+  sessions      Session[]
+  incidents     Incident[]
+  serviceRequests ServiceRequest[]
+  reports       CitizenReport[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+// ============================================
+// Traffic Management
+// ============================================
+
+model TrafficSensor {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  latitude      Float
+  longitude     Float
+  status        String   @default("active") // active, maintenance, offline
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  readings      TrafficReading[]
+}
+
+model TrafficReading {
+  id            String   @id @default(cuid())
+  sensorId      String
+  sensor        TrafficSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  vehicleCount  Int
+  avgSpeed      Float    // km/h
+  congestion    String   // low, medium, high
+  timestamp     DateTime @default(now())
+}
+
+model TrafficIncident {
+  id            String   @id @default(cuid())
+  type          String   // accident, roadwork, breakdown, hazard
+  location      String
+  latitude      Float
+  longitude     Float
+  description   String
+  severity      String   @default("minor") // minor, moderate, severe
+  status        String   @default("active") // active, resolved
+  reportedAt    DateTime @default(now())
+  resolvedAt    DateTime?
+}
+
+// ============================================
+// Environmental Monitoring
+// ============================================
+
+model EnvironmentalSensor {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   // aqi, weather, water
+  location      String
+  latitude      Float
+  longitude     Float
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  aqiReadings   AQIReading[]
+  weatherReadings WeatherReading[]
+}
+
+model AQIReading {
+  id            String   @id @default(cuid())
+  sensorId      String
+  sensor        EnvironmentalSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  aqi           Int
+  pm25          Float    // μg/m³
+  pm10          Float
+  co2           Float    // ppm
+  no2           Float    // ppb
+  o3            Float    // ppb
+  so2           Float
+  level         String   // good, moderate, unhealthy, very_unhealthy, hazardous
+  timestamp     DateTime @default(now())
+}
+
+model WeatherReading {
+  id            String   @id @default(cuid())
+  sensorId      String
+  sensor        EnvironmentalSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  temperature   Float    // Celsius
+  humidity      Float    // %
+  windSpeed     Float    // km/h
+  windDirection String
+  pressure      Float    // hPa
+  rainfall      Float    // mm
+  timestamp     DateTime @default(now())
+}
+
+// ============================================
+// Public Safety & Security
+// ============================================
+
+model Incident {
+  id            String   @id @default(cuid())
+  type          String   // fire, crime, medical, natural_disaster, other
+  title         String
+  description   String
+  location      String
+  latitude      Float
+  longitude     Float
+  severity      String   // low, medium, high, critical
+  status        String   @default("reported") // reported, investigating, resolved
+  reportedBy    String?
+  reporter      User?    @relation(fields: [reportedBy], references: [id])
+  reportedAt    DateTime @default(now())
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CCTVCamera {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  latitude      Float
+  longitude     Float
+  status        String   @default("online") // online, offline, maintenance
+  streamUrl     String?
+  lastSnapshot  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model EmergencyService {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   // police, fire, ambulance, disaster_management
+  location      String
+  latitude      Float
+  longitude     Float
+  phone         String
+  status        String   @default("available") // available, busy, offline
+  capacity      Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// Water Management
+// ============================================
+
+model WaterReservoir {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  latitude      Float
+  longitude     Float
+  capacity      Float    // Million Liters
+  currentLevel  Float
+  status        String   @default("normal") // normal, low, critical, overflow
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  readings      ReservoirReading[]
+}
+
+model ReservoirReading {
+  id            String   @id @default(cuid())
+  reservoirId   String
+  reservoir     WaterReservoir @relation(fields: [reservoirId], references: [id], onDelete: Cascade)
+  level         Float    // Million Liters
+  inflow        Float    // L/min
+  outflow       Float    // L/min
+  quality       Float    // pH
+  turbidity     Float    // NTU
+  timestamp     DateTime @default(now())
+}
+
+model WaterZone {
+  id            String   @id @default(cuid())
+  name          String
+  type          String   // residential, commercial, industrial
+  location      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  usage         WaterUsage[]
+}
+
+model WaterUsage {
+  id            String   @id @default(cuid())
+  zoneId        String
+  zone          WaterZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  consumption   Float    // Liters
+  date          DateTime @default(now())
+  timestamp     DateTime @default(now())
+}
+
+model WaterLeak {
+  id            String   @id @default(cuid())
+  location      String
+  latitude      Float
+  longitude     Float
+  severity      String   // minor, moderate, major
+  status        String   @default("reported") // reported, repairing, fixed
+  reportedAt    DateTime @default(now())
+  fixedAt       DateTime?
+}
+
+// ============================================
+// Energy Management
+// ============================================
+
+model EnergyGrid {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  capacity      Float    // MW
+  currentLoad   Float
+  status        String   @default("normal") // normal, peak, critical
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  readings      EnergyReading[]
+}
+
+model EnergyReading {
+  id            String   @id @default(cuid())
+  gridId        String
+  grid          EnergyGrid @relation(fields: [gridId], references: [id], onDelete: Cascade)
+  load          Float    // MW
+  renewable     Float    // % renewable
+  consumption   Float    // MWh
+  timestamp     DateTime @default(now())
+}
+
+model StreetLight {
+  id            String   @id @default(cuid())
+  location      String
+  latitude      Float
+  longitude     Float
+  status        String   @default("on") // on, off, maintenance
+  brightness    Int      @default(100) // percentage
+  isSmart       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// Waste Management
+// ============================================
+
+model WasteBin {
+  id            String   @id @default(cuid())
+  location      String
+  latitude      Float
+  longitude     Float
+  capacity      Int      // Liters
+  currentLevel  Int      // percentage
+  type          String   // general, recyclable, organic
+  status        String   @default("normal") // normal, full, overflow
+  lastEmptied   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WasteTruck {
+  id            String   @id @default(cuid())
+  plateNumber   String
+  driverName    String
+  status        String   @default("idle") // idle, on_route, collecting
+  currentLat    Float?
+  currentLng    Float?
+  route         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// Parking Management
+// ============================================
+
+model ParkingLot {
+  id            String   @id @default(cuid())
+  name          String
+  location      String
+  latitude      Float
+  longitude     Float
+  totalSpaces   Int
+  availableSpaces Int
+  hourlyRate    Float
+  status        String   @default("open") // open, closed, full
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// News & Announcements
+// ============================================
+
+model News {
+  id            String   @id @default(cuid())
+  title         String
+  content       String
+  category      String   // government, policy, incident, general
+  author        String?
+  imageUrl      String?
+  isPublished   Boolean  @default(true)
+  isPinned      Boolean  @default(false)
+  publishedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model GovernmentScheme {
+  id            String   @id @default(cuid())
+  name          String
+  description   String
+  category      String   // welfare, infrastructure, health, education
+  eligibility   String?
+  benefits      String?
+  startDate     DateTime?
+  endDate       DateTime?
+  status        String   @default("active") // active, closed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// Citizen Services
+// ============================================
+
+model ServiceRequest {
+  id            String   @id @default(cuid())
+  type          String   // pothole, streetlight, garbage, water, other
+  title         String
+  description   String
+  location      String
+  latitude      Float?
+  longitude     Float?
+  status        String   @default("pending") // pending, in_progress, resolved, rejected
+  priority      String   @default("normal") // low, normal, high, urgent
+  requesterId   String?
+  requester     User?    @relation(fields: [requesterId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  resolvedAt    DateTime?
+}
+
+model CitizenReport {
+  id            String   @id @default(cuid())
+  type          String   // suggestion, complaint, feedback
+  title         String
+  description   String
+  location      String?
+  isAnonymous   Boolean  @default(false)
+  reporterId    String?
+  reporter      User?    @relation(fields: [reporterId], references: [id])
+  status        String   @default("submitted") // submitted, reviewed, in_progress, resolved
+  priority      String   @default("normal") // low, normal, high, urgent
+  assignedDepts String?  // comma-separated: "water,fire,traffic"
+  resolvedDepts String?  // comma-separated: departments that completed their part
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  notes         ReportNote[]
+}
+
+model ReportNote {
+  id            String   @id @default(cuid())
+  reportId      String
+  report        CitizenReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorName    String   // name of person posting
+  authorRole    String   // admin, officer, or department name
+  department    String?  // which department is this from
+  message       String
+  createdAt     DateTime @default(now())
+}
+
+// ============================================
+// Dashboard Settings & Preferences
+// ============================================
+
+model DashboardWidget {
+  id            String   @id @default(cuid())
+  name          String
+  type          String
+  position      Int
+  size          String   @default("medium") // small, medium, large
+  config        String?  // JSON config
+  isEnabled     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SystemAlert {
+  id            String   @id @default(cuid())
+  type          String   // traffic, environment, safety, water, energy
+  title         String
+  message       String
+  severity      String   // info, warning, critical
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+
